@@ -219,8 +219,10 @@ python tests/run_e2e_tests.py
 
 **Jaivik Chauhan**  
 *Aspiring Product Manager*  
-*Specializations:* Two-Sided Marketplaces, Algorithmic Pricing, Consumer Psychology, High-Fidelity Prototyping, Systems Design.
+- **Current Role:** Management Consultant at IQVIA  
+- **Education:** MBA, IIM Indore | B.Tech in IT, VIT Vellore  
 
 ---
 
 *This case study is engineered to production fidelity as a comprehensive product improvement proposal.*
+
