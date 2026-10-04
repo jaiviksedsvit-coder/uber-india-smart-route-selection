@@ -89,14 +89,14 @@ journey
     title Commuter Journey: BKC to Nariman Point (Status Quo vs Proposed)
     section Status Quo (As-Is)
       Enter Destination: 5: Rider
-      See Opaque ₹480 (Sea Link default): 2: Rider (Price shock)
-      Argue Route with Driver Mid-Trip: 1: Rider & Driver (Friction)
-      Charged ₹480 for Mahim route: 1: Rider (Dispute ticket)
+      Opaque Sea Link Default Price Shock: 2: Rider
+      Route Argument with Driver Mid-Trip: 1: Rider, Driver
+      Overcharged for Mahim Surface Route: 1: Rider
     section Proposed (To-Be)
-      See Route Toggle (Fastest vs Cheapest): 5: Rider (Full transparency)
-      Tap 'Cheapest' (Save ₹130 via Mahim): 5: Rider (Empowered choice)
-      Driver GPS auto-loads Mahim waypoints: 5: Driver (Zero debate)
-      Exact ₹350 billed: 5: Rider (Zero billing surprises)
+      Binary Route Toggle Visible: 5: Rider
+      Select Cheapest and Save ₹130: 5: Rider
+      Driver GPS Auto-Loads Mahim Waypoints: 5: Driver
+      Exact ₹350 Billed with Zero Friction: 5: Rider
 ```
 
 ---

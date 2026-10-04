@@ -154,11 +154,11 @@ gantt
     section Phase 1: MVP
     Toll Breakdown Card & telemetry logging :done, 2026-08-01, 2026-08-15
     section Phase 2: Pilot
-    Dual-Corridor Prototype (BKC & Powai)  :active, 2026-08-16, 2026-09-30
+    Dual-Corridor Prototype - BKC and Powai  :active, 2026-08-16, 2026-09-30
     Closed-loop Driver Navigation Handoff   :active, 2026-09-01, 2026-10-15
     section Phase 3: Metro Scale
-    Mumbai Citywide Rollout (Atal Setu, JVLR): 2026-10-16, 2026-11-30
-    Bengaluru Airport & ORR Tollways        : 2026-12-01, 2026-12-31
+    Mumbai Citywide Rollout - Atal Setu and JVLR: 2026-10-16, 2026-11-30
+    Bengaluru Airport and ORR Tollways      : 2026-12-01, 2026-12-31
     section Phase 4: Intelligence
     Habitual Defaults & ML Personalization   : 2027-01-01, 2027-02-28
 ```

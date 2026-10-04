@@ -180,14 +180,14 @@ sequenceDiagram
 
     Rider->>Gateway: POST /v2/rides/quotes (BKC to Nariman Point)
     Gateway->>Routing: Parallel Request (Top 2 Viable Routes)
-    Routing-->>Gateway: Fastest (Sea Link, ₹480) & Cheapest (Mahim, ₹350)
-    Gateway-->>Rider: Bundled Dual-Corridor Payload (<350ms)
-    Note over Rider: Rider taps "Cheapest (Save ₹130)"
+    Routing-->>Gateway: Fastest (Sea Link, ₹480) and Cheapest (Mahim, ₹350)
+    Gateway-->>Rider: Bundled Dual-Corridor Payload (under 350ms)
+    Note over Rider: Rider selects Cheapest (Save ₹130)
     Rider->>Dispatch: POST /v2/rides/book (Route: Cheapest, Upfront: ₹350)
     Dispatch->>Driver: Dispatch Match with Injected Waypoint URI
-    Note over Driver: Google Maps launches with locked waypoints:<br/>google.navigation:q=dest&waypoints=Mahim|MarineDrive
-    Driver-->>Rider: Follows exact selected corridor; Zero in-trip arguments
-    Note over Rider,Driver: Trip completes at locked ₹350; Anti-Detour Shield active
+    Note over Driver: Google Maps launches with locked waypoints (Mahim and Marine Drive)
+    Driver-->>Rider: Follows exact selected corridor with zero in-trip friction
+    Note over Rider,Driver: Trip completes at locked ₹350 with Anti-Detour Shield active
 ```
 
 ---

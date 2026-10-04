@@ -62,7 +62,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["1. Home Screen<br/>(Unchanged)"] --> B["2. Destination Input<br/>(Unchanged)"]
-    B --> C["3. Enhanced Ride Selection Sheet<br/><b>[Route Preference Toggle]</b><br/>Fastest (26m • ₹480) | Cheapest (42m • ₹350)"]
+    B --> C["3. Enhanced Ride Selection Sheet<br/><b>[Route Preference Toggle]</b><br/>Fastest (26m • ₹480) vs Cheapest (42m • ₹350)"]
     C -->|Single Viable Corridor| C1["Graceful Degradation:<br/>Toggle suppressed, Standard UI"]
     C -->|2+ Viable Corridors| C2["Rider Selects Corridor<br/>All vehicle prices dynamically re-index"]
     C2 --> D["4. Confirm with Locked Waypoint<br/>('Choose UberGo • ₹480')"]
