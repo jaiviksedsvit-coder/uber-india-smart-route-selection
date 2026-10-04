@@ -3,6 +3,18 @@
 > **A Product Management Case Study & Interactive Prototype Proposing an End-to-End Experience Improvement for Uber India**  
 > **Author:** **Jaivik Chauhan** (Aspiring Product Manager)  
 
+<p align="center">
+  <a href="https://jaiviksedsvit-coder.github.io/uber-india-smart-route-selection/" target="_blank">
+    <img src="https://img.shields.io/badge/🚀%20Live%20Prototype-Open%20Interactive%20Demo-000000?style=for-the-badge&logoColor=white" alt="Live Prototype">
+  </a>
+  &nbsp;
+  <a href="https://github.com/jaiviksedsvit-coder/uber-india-smart-route-selection" target="_blank">
+    <img src="https://img.shields.io/badge/GitHub-Case%20Study%20Repo-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Repo">
+  </a>
+</p>
+
+> 🎮 **[▶ Open Live Prototype](https://jaiviksedsvit-coder.github.io/uber-india-smart-route-selection/)** — Interactive Uber India route selection demo, runs directly in your browser. No install needed.
+
 ---
 
 ## 🎯 Executive Summary
