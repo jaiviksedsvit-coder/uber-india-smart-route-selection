@@ -32,18 +32,6 @@ A pre-booking route preference toggle integrated directly into Uber India's vehi
 
 The rider's choice locks the upfront fare and injects fixed routing waypoints into the Driver Partner dispatch intent, closing the gap between pricing and navigation.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       PROJECTED PILOT IMPACT METRICS                        │
-├──────────────────────────┬─────────────────────────┬────────────────────────┤
-│   QUOTE-TO-BOOK LIFT     │  CORRIDOR SWITCH RATE   │  DISPUTE DEFLECTION    │
-│  69.2% (▲ +4.2pp vs ctrl)│  31.8% to 'Cheapest'    │  -38.4% Support Tickets│
-├──────────────────────────┼─────────────────────────┼────────────────────────┤
-│   DECISION LATENCY       │  DRIVER ACCEPTANCE RATE │  TEST SUITE STATUS     │
-│  +1.8s (Guardrail: ≤+5s) │  76.4% (Guardrail: ≥70%)│  10/10 Automated Tests │
-└──────────────────────────┴─────────────────────────┴────────────────────────┘
-```
-
 ---
 
 ## 💡 Strategic Rationale: Why Uber India over Rapido?
