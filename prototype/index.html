@@ -1,0 +1,2355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Uber India — Smart Route Selection | Interactive Prototype</title>
+    
+    <!-- Modern Typography: Plus Jakarta Sans / Inter mimicking Uber Move -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Local Leaflet for 100% offline reliability -->
+    <link rel="stylesheet" href="vendor/leaflet.css" />
+    <script src="vendor/leaflet.js"></script>
+
+    <!-- Real Mumbai Road Coordinates (OSRM extracted: BKC -> Sea Link -> Nariman Point) -->
+    <script src="routes_data.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --uber-black: #000000;
+            --uber-white: #ffffff;
+            --uber-gray-50: #fcfcfc;
+            --uber-gray-100: #f6f6f6;
+            --uber-gray-200: #eeeeee;
+            --uber-gray-300: #e2e2e2;
+            --uber-gray-400: #afafaf;
+            --uber-gray-500: #545454;
+            --uber-gray-600: #333333;
+            --uber-blue: #276ef1;
+            --uber-green: #0e8345;
+            --uber-green-bg: #e6f7ed;
+            --uber-orange: #b84300;
+            --uber-orange-bg: #fff0ed;
+            --uber-font: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            font-family: var(--uber-font);
+            background: #0d1117;
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(39, 110, 241, 0.15) 0%, transparent 45%),
+                radial-gradient(circle at 85% 80%, rgba(14, 131, 69, 0.12) 0%, transparent 45%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px 20px;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* App Workspace Layout */
+        .workspace-container {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+            max-width: 1320px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* ========================================================
+           PHONE MOCKUP (Uber India Native Experience)
+           ======================================================== */
+        .phone-wrapper {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .phone-frame {
+            width: 392px;
+            height: 844px;
+            background: #000000;
+            border-radius: 54px;
+            padding: 12px;
+            box-shadow: 
+                0 32px 84px -16px rgba(0,0,0,0.85),
+                0 0 0 1px rgba(255,255,255,0.18),
+                0 0 50px rgba(39, 110, 241, 0.22);
+            position: relative;
+        }
+
+        .phone-inner {
+            width: 100%;
+            height: 100%;
+            background: var(--uber-white);
+            border-radius: 44px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 116px;
+            height: 28px;
+            background: #000000;
+            border-radius: 20px;
+            z-index: 1005;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .island-camera {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #111422;
+            border: 1px solid #1a2030;
+        }
+        .island-sensor {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #0d0f17;
+        }
+
+        /* iOS Status Bar */
+        .status-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 44px;
+            padding: 12px 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1004;
+            color: #000000;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            pointer-events: none;
+        }
+        .status-icons {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-icons svg {
+            fill: #000000;
+        }
+
+        /* Top Floating Navigation: Clean, No duplicate info button */
+        .floating-top-nav {
+            position: absolute;
+            top: 48px;
+            left: 14px;
+            right: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .circle-btn {
+            width: 40px;
+            height: 40px;
+            background: var(--uber-white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+            cursor: pointer;
+            pointer-events: auto;
+            border: none;
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+        .circle-btn:active {
+            transform: scale(0.92);
+            background: var(--uber-gray-100);
+        }
+
+        .route-summary-pill {
+            background: var(--uber-white);
+            padding: 7px 14px;
+            height: 36px;
+            border-radius: 20px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.14);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            pointer-events: auto;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--uber-black);
+            margin: 0 auto;
+            cursor: pointer;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+            user-select: none;
+            box-sizing: border-box;
+            transform: none !important;
+        }
+        .route-summary-pill:hover {
+            background: #f8f9fa;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+            transform: none !important;
+        }
+        .route-summary-pill:active {
+            background: var(--uber-gray-100);
+        }
+        .route-summary-pill span {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+        }
+        .route-summary-pill .arrow {
+            color: var(--uber-gray-400);
+            font-size: 11px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transform: none !important;
+        }
+        .route-summary-pill .pill-chevron {
+            font-size: 10px;
+            color: var(--uber-gray-500);
+            line-height: 1;
+            margin-left: 2px;
+            display: inline-flex;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        /* Corridor Dropdown Menu inside phone */
+        .corridor-dropdown-menu {
+            position: absolute;
+            top: 96px;
+            left: 20px;
+            right: 20px;
+            background: #FFFFFF;
+            border-radius: 16px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.35);
+            border: 1px solid rgba(0,0,0,0.08);
+            z-index: 1002;
+            padding: 8px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            animation: fadeInDown 0.2s ease-out;
+        }
+        .corridor-dropdown-menu.active {
+            display: flex;
+        }
+        .corridor-dropdown-item {
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .corridor-dropdown-item:hover {
+            background: var(--uber-gray-100);
+        }
+        .corridor-dropdown-item.active {
+            background: #f0f4ff;
+            border-left: 3px solid var(--uber-blue);
+        }
+        .corridor-item-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--uber-black);
+        }
+        .corridor-item-sub {
+            font-size: 11px;
+            color: var(--uber-gray-500);
+        }
+
+        /* Sidebar Corridor Switcher */
+        .corridor-sidebar-toggle {
+            display: flex;
+            background: #161b22;
+            padding: 3px;
+            border-radius: 10px;
+            gap: 4px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .corridor-tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            padding: 8px 8px;
+            border-radius: 8px;
+            font-family: var(--uber-font);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .corridor-tab-btn:hover {
+            color: #ffffff;
+            background: rgba(255,255,255,0.04);
+        }
+        .corridor-tab-btn.active {
+            background: #21262d;
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .corridor-tab-sub {
+            font-size: 9px;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        /* Map Canvas - Clean Uber Map Theme */
+        #map-container {
+            width: 100%;
+            height: 46%;
+            position: relative;
+            background: #f1efeb;
+            z-index: 1;
+            transition: height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #f1efeb;
+        }
+        /* Uber Map Minimalist Styling (Clean, soft, authentic) */
+        #map .leaflet-tile {
+            filter: grayscale(90%) contrast(92%) brightness(104%);
+        }
+
+        /* Recenter Map Button */
+        .recenter-btn {
+            position: absolute;
+            bottom: 22px;
+            right: 14px;
+            width: 36px;
+            height: 36px;
+            background: var(--uber-white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            z-index: 999;
+            cursor: pointer;
+            border: none;
+        }
+        .recenter-btn svg {
+            stroke: #000000;
+        }
+
+        /* Authentic Uber Map Location Tags (from official Uber app UI) */
+        .uber-place-pin {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .uber-place-badge {
+            display: inline-flex;
+            align-items: stretch;
+            background: #FFFFFF;
+            border-radius: 3px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+            overflow: hidden;
+            font-size: 11px;
+            line-height: 1;
+            white-space: nowrap;
+            margin-bottom: 3px;
+            border: 1px solid rgba(0,0,0,0.08);
+        }
+        .place-eta {
+            background: #000000;
+            color: #FFFFFF;
+            font-weight: 800;
+            font-size: 10px;
+            padding: 4px 6px;
+            display: flex;
+            align-items: center;
+            letter-spacing: -0.2px;
+        }
+        .place-name {
+            color: #000000;
+            font-weight: 700;
+            padding: 4px 7px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .place-chevron {
+            color: #828E9C;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .uber-place-dot {
+            width: 10px;
+            height: 10px;
+            background: #000000;
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        .uber-place-dot.circle {
+            border-radius: 50%;
+        }
+        .uber-place-dot.square {
+            border-radius: 2px;
+        }
+        .uber-pin-pulse {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(39, 110, 241, 0.45);
+            animation: pinPulse 2s infinite ease-out;
+            pointer-events: none;
+        }
+        @keyframes pinPulse {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        /* Strip default Leaflet wrapper borders to ensure perfect text centering */
+        .leaflet-div-icon,
+        .uber-custom-bubble-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        /* Compact Uber Native Route Placeholders (Matching screenshot: sleek, small, crisp rectangular badge) */
+        .map-route-bubble {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.94);
+            color: #444444;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+            border: 1px solid rgba(0,0,0,0.16);
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            line-height: normal; /* Fixed: Prevents text floating to top! */
+            padding: 0 7px;
+            box-sizing: border-box;
+            font-family: var(--uber-font);
+            opacity: 0.72; /* Inactive route is clearly faded / secondary */
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .map-route-bubble:hover {
+            opacity: 0.95;
+            transform: scale(1.04);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.22);
+        }
+        .map-route-bubble.active {
+            background: #000000;
+            color: #FFFFFF;
+            border: 1px solid #000000;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.40);
+            opacity: 1.0 !important; /* Selected route pops out 100% opaque! */
+            transform: scale(1.03);
+            z-index: 1000 !important;
+        }
+
+        /* ========================================================
+           BOTTOM SHEET (Interactive Expandable Physics)
+           ======================================================== */
+        .bottom-sheet {
+            flex: 1;
+            background: var(--uber-white);
+            border-radius: 24px 24px 0 0;
+            margin-top: -16px;
+            z-index: 100;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        /* Expanded and Peek States */
+        .bottom-sheet.sheet-expanded {
+            position: absolute;
+            top: 106px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            margin-top: 0;
+            border-radius: 24px 24px 0 0;
+            z-index: 1002;
+        }
+        .bottom-sheet.sheet-peek {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 240px;
+            z-index: 1002;
+        }
+
+        /* Clickable / Draggable Sheet Handle */
+        .sheet-handle-wrap {
+            padding: 8px 0 4px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+        .sheet-handle {
+            width: 36px;
+            height: 4.5px;
+            background: var(--uber-gray-300);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        .sheet-handle-wrap:hover .sheet-handle {
+            background: var(--uber-gray-400);
+        }
+
+        .sheet-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2px 18px 6px;
+        }
+        .sheet-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--uber-black);
+            letter-spacing: -0.4px;
+        }
+
+        .sheet-scroll-body {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sheet-scroll-body::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* ========================================================
+           NEW FEATURE: BINARY 2-ROUTE SELECTION (Hick's Law)
+           ======================================================== */
+        .smart-route-container {
+            background: #fafafa;
+            border-top: 1px solid var(--uber-gray-200);
+            border-bottom: 1px solid var(--uber-gray-200);
+            padding: 10px 16px 12px;
+            margin-bottom: 4px;
+            transition: all 0.3s ease;
+        }
+
+        /* Graceful Single-Mode State (Maintains exact pixel height to prevent ANY layout shift) */
+        .smart-route-container.single-mode .slider-snap-thumb {
+            width: calc(100% - 6px) !important;
+            transform: translateX(0) !important;
+        }
+        .smart-route-container.single-mode .slider-segment[data-index="1"] {
+            display: none !important;
+        }
+        .smart-route-container.single-mode .slider-segment[data-index="0"] {
+            flex: 1;
+            cursor: default;
+        }
+        .smart-route-container.single-mode .route-section-badge {
+            display: none;
+        }
+
+        .single-route-banner {
+            display: none !important;
+        }
+
+        .route-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .route-section-title {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--uber-gray-500);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .route-section-badge {
+            background: var(--uber-black);
+            color: white;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 5px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+        .route-info-link {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--uber-gray-500);
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            transition: color 0.15s ease;
+        }
+        .route-info-link:hover {
+            color: var(--uber-black);
+        }
+
+        /* Binary 2-State Snapping Slider Track (Fastest vs Cheapest) */
+        .route-slider-track {
+            position: relative;
+            background: var(--uber-gray-200);
+            border-radius: 10px;
+            padding: 3px;
+            display: flex;
+            height: 42px;
+            user-select: none;
+        }
+
+        .slider-snap-thumb {
+            position: absolute;
+            top: 3px;
+            bottom: 3px;
+            left: 3px;
+            width: calc(50% - 3px);
+            background: var(--uber-white);
+            border-radius: 8px;
+            box-shadow: 0 2px 7px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
+            transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 1;
+            border: 0.5px solid rgba(0,0,0,0.04);
+        }
+
+        .slider-segment {
+            flex: 1;
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .segment-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--uber-gray-500);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s ease;
+        }
+        .segment-sub {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--uber-gray-400);
+            transition: color 0.2s ease;
+        }
+        .slider-segment.active .segment-label {
+            color: var(--uber-black);
+        }
+        .slider-segment.active .segment-sub {
+            color: var(--uber-gray-600);
+        }
+
+        /* Route Detail Trade-off Banner */
+        .route-tradeoff-card {
+            margin-top: 8px;
+            background: var(--uber-white);
+            border: 1px solid var(--uber-gray-200);
+            border-radius: 9px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.25s ease;
+        }
+        .tradeoff-left {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+        .tradeoff-road {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--uber-black);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tradeoff-dist-time {
+            font-size: 11px;
+            color: var(--uber-gray-500);
+            font-weight: 500;
+        }
+        .tradeoff-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            background: #F3F3F3;
+            color: #5E5E5E;
+            border: 1px solid #E2E2E2;
+        }
+        .badge-neutral {
+            background: #F3F3F3;
+            color: #5E5E5E;
+            border: 1px solid #E2E2E2;
+        }
+
+        /* ========================================================
+           VEHICLE RIDE OPTIONS (Exact Uber India Layout)
+           ======================================================== */
+        .ride-list {
+            padding: 2px 12px;
+        }
+
+        .ride-card {
+            display: flex;
+            align-items: center;
+            padding: 9px 12px;
+            border-radius: 14px;
+            border: 2px solid transparent;
+            margin-bottom: 3px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            background: var(--uber-white);
+        }
+        .ride-card:hover {
+            background: var(--uber-gray-50);
+        }
+        .ride-card.active {
+            border-color: var(--uber-black);
+            background: var(--uber-white);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .ride-card.restricted-card {
+            opacity: 0.62;
+            background: #fafafa;
+            cursor: not-allowed;
+            border-color: rgba(0,0,0,0.04);
+        }
+        .ride-card.restricted-card:hover {
+            background: #f7f7f7;
+            border-color: rgba(0,0,0,0.04);
+        }
+        .regulatory-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fff0ed;
+            color: #b84300;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 3px;
+            border: 1px solid rgba(184, 67, 0, 0.22);
+            line-height: 1.2;
+        }
+        .regulatory-toast {
+            position: absolute;
+            bottom: 84px;
+            left: 14px;
+            right: 14px;
+            background: #1f2328;
+            color: #ffffff;
+            padding: 11px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.4;
+            display: none;
+            align-items: flex-start;
+            gap: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.38);
+            z-index: 2000;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .regulatory-toast.show {
+            display: flex;
+            animation: fadeInDown 0.2s ease-out;
+        }
+
+        .ride-img-wrap {
+            width: 80px;
+            height: 52px;
+            flex-shrink: 0;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: transparent;
+        }
+        .ride-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            mix-blend-mode: normal;
+            transform: scale(1.02);
+        }
+
+        .ride-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .ride-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 1px;
+        }
+        .ride-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--uber-black);
+            letter-spacing: -0.3px;
+        }
+        .ride-capacity {
+            font-size: 11px;
+            color: var(--uber-gray-500);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-weight: 600;
+        }
+        .ride-eta {
+            font-size: 11.5px;
+            color: var(--uber-gray-500);
+            font-weight: 500;
+            margin-bottom: 1px;
+        }
+        .ride-tagline {
+            font-size: 10.5px;
+            color: var(--uber-gray-400);
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ride-price-col {
+            text-align: right;
+            flex-shrink: 0;
+            padding-left: 8px;
+        }
+        .ride-price {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--uber-black);
+            letter-spacing: -0.3px;
+            transition: all 0.2s ease;
+        }
+        .ride-old-price {
+            display: none !important;
+        }
+        .ride-tag-chip {
+            display: inline-block;
+            font-size: 9.5px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 2px;
+            background: #F3F3F3;
+            color: #5E5E5E;
+            border: 1px solid #E5E5E5;
+        }
+        .chip-toll, .chip-save {
+            background: #F3F3F3;
+            color: #5E5E5E;
+        }
+
+        /* ========================================================
+           BOTTOM ACTION BAR & PAYMENT (Native Uber)
+           ======================================================== */
+        .bottom-action-panel {
+            background: var(--uber-white);
+            border-top: 1px solid var(--uber-gray-200);
+            padding: 8px 16px 20px;
+            z-index: 101;
+        }
+
+        .payment-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 0 4px;
+        }
+        .payment-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--uber-black);
+            cursor: pointer;
+        }
+        .payment-pill svg {
+            width: 15px;
+            height: 15px;
+        }
+        .profile-pill {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--uber-gray-600);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .uber-confirm-btn {
+            width: 100%;
+            height: 50px;
+            background: var(--uber-black);
+            color: var(--uber-white);
+            border: none;
+            border-radius: 12px;
+            font-size: 16.5px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .uber-confirm-btn:active {
+            transform: scale(0.98);
+            background: #222222;
+        }
+
+        .home-indicator {
+            width: 130px;
+            height: 4px;
+            background: #000000;
+            border-radius: 2px;
+            margin: 7px auto 0;
+        }
+
+        /* ========================================================
+           MODALS (Booking Flow & PM Route Explanation)
+           ======================================================== */
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-sheet {
+            width: 100%;
+            background: var(--uber-white);
+            border-radius: 24px 24px 0 0;
+            padding: 24px 20px 32px;
+            color: var(--uber-black);
+            animation: slideUpModal 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            max-height: 85%;
+            overflow-y: auto;
+        }
+        @keyframes slideUpModal {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-close-bar {
+            width: 36px;
+            height: 4px;
+            background: var(--uber-gray-300);
+            border-radius: 2px;
+            margin: 0 auto 16px;
+            cursor: pointer;
+        }
+
+        /* ========================================================
+           SIDEBAR (Prototype Controls & Documentation)
+           ======================================================== */
+        .pm-companion-panel {
+            width: 380px;
+            background: #111419;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            font-family: var(--uber-font);
+        }
+
+        .panel-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #8a94a6;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Active Corridor Live Card */
+        .active-corridor-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+        .active-corridor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .active-corridor-road {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        .active-corridor-fare {
+            font-size: 15px;
+            font-weight: 800;
+            color: #58a6ff;
+        }
+        .active-corridor-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .active-stat-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 7px 4px;
+            text-align: center;
+        }
+        .active-stat-val {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+        .active-stat-lbl {
+            font-size: 9.5px;
+            color: #8a94a6;
+            margin-top: 1px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* Metrics To Track Box */
+        .metrics-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+        .metric-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .metric-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #388bfd;
+            margin-top: 5px;
+            flex-shrink: 0;
+        }
+        .metric-body {
+            flex: 1;
+        }
+        .metric-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #f0f6fc;
+            line-height: 1.3;
+        }
+        .metric-desc {
+            font-size: 11px;
+            color: #8b949e;
+            line-height: 1.35;
+            margin-top: 1px;
+        }
+
+        /* Edge Case Simulator Box */
+        .edge-case-box {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .edge-case-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 2px;
+        }
+        .edge-case-sub {
+            font-size: 11.5px;
+            color: #8a94a6;
+            line-height: 1.35;
+        }
+        .switch-btn {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            font-family: var(--uber-font);
+        }
+        .switch-btn:hover {
+            background: #e2e2e2;
+        }
+        .switch-btn.active {
+            background: #276ef1;
+            color: #ffffff;
+        }
+
+        /* Documentation links */
+        .doc-btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .doc-link-btn {
+            padding: 11px 14px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--uber-font);
+        }
+        .doc-link-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #ffffff;
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        /* Mobile Responsive Adjustments */
+        @media (max-width: 950px) {
+            .workspace-container {
+                flex-direction: column;
+            }
+            .pm-companion-panel {
+                width: 392px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="workspace-container">
+
+        <!-- ========================================================
+             1. THE UBER INDIA NATIVE PROTOTYPE
+             ======================================================== -->
+        <div class="phone-wrapper">
+            <div class="phone-frame">
+                <div class="phone-inner">
+
+                    <!-- iPhone Dynamic Island -->
+                    <div class="dynamic-island">
+                        <div class="island-camera"></div>
+                        <div class="island-sensor"></div>
+                    </div>
+
+                    <!-- iOS Status Bar -->
+                    <div class="status-bar">
+                        <span>9:41</span>
+                        <div class="status-icons">
+                            <svg width="17" height="11" viewBox="0 0 17 11"><path d="M1 8.5h2v2H1zm4-3h2v5H5zm4-3h2v8H9zm4-2h2v10h-2z"/></svg>
+                            <svg width="15" height="11" viewBox="0 0 15 11"><path d="M7.5 2.5C9.8 2.5 11.9 3.5 13.4 5.1L14.7 3.7C12.8 1.8 10.3.6 7.5.6 4.7.6 2.2 1.8.3 3.7l1.3 1.4C3.1 3.5 5.2 2.5 7.5 2.5zm0 4c1.3 0 2.5.6 3.4 1.5l1.3-1.4C11 5.3 9.3 4.5 7.5 4.5S4 5.3 2.8 6.6l1.3 1.4c.9-.9 2.1-1.5 3.4-1.5zm0 4c.8 0 1.5-.7 1.5-1.5s-.7-1.5-1.5-1.5-1.5.7-1.5 1.5.7 1.5 1.5 1.5z"/></svg>
+                            <svg width="22" height="11" viewBox="0 0 22 11"><rect x="0.5" y="0.5" width="18" height="10" rx="3" fill="none" stroke="#000"/><rect x="2" y="2" width="15" height="7" rx="1.5" fill="#000"/><path d="M20 3.5v4" stroke="#000" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+
+                    <!-- Top Floating Nav: Clean & Authentic -->
+                    <!-- Top Floating Nav: Clean & Authentic with Corridor Switcher -->
+                    <div class="floating-top-nav">
+                        <button class="circle-btn" id="back-btn" title="Back" onclick="resetToInitialState()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        </button>
+                        
+                        <div class="route-summary-pill" id="route-summary-pill" onclick="toggleCorridorDropdown(event)" title="Tap to switch Mumbai corridor">
+                            <span id="pill-origin">BKC</span>
+                            <span class="arrow">➔</span>
+                            <span id="pill-dest">Nariman Point</span>
+                            <span class="pill-chevron">▾</span>
+                        </div>
+                    </div>
+
+                    <!-- Native Corridor Dropdown Menu -->
+                    <div class="corridor-dropdown-menu" id="corridor-dropdown">
+                        <div class="corridor-dropdown-item active" id="dropdown-item-bkc" onclick="switchCorridor('bkc_nariman')">
+                            <span class="corridor-item-title">BKC ➔ Nariman Point</span>
+                            <span class="corridor-item-sub">Toll Avoidance (₹85 Sea Link vs Mahim)</span>
+                        </div>
+                        <div class="corridor-dropdown-item" id="dropdown-item-powai" onclick="switchCorridor('powai_santacruz')">
+                            <span class="corridor-item-title">Powai ➔ Santacruz East (Kalina)</span>
+                            <span class="corridor-item-sub">Flyover vs SCLR (JVLR vs Kalina)</span>
+                        </div>
+                    </div>
+
+                    <!-- Realistic Interactive Leaflet Map Area -->
+                    <div id="map-container">
+                        <div id="map"></div>
+                        <button class="recenter-btn" id="recenter-map-btn" title="Center Route">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><polyline points="12 2 12 5"/><polyline points="12 19 12 22"/><polyline points="2 12 5 12"/><polyline points="19 12 22 12"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- Native Bottom Sheet with Interactive Grab Handle Physics -->
+                    <div class="bottom-sheet" id="bottom-sheet">
+                        <div class="sheet-handle-wrap" id="sheet-handle-wrap" onclick="toggleSheetExpansion()" title="Tap to expand / collapse sheet">
+                            <div class="sheet-handle"></div>
+                        </div>
+                        
+                        <div class="sheet-header-row">
+                            <h2 class="sheet-title">Choose a ride</h2>
+                        </div>
+
+                        <!-- Fallback Banner for Single-Route Edge Case -->
+                        <div class="single-route-banner" id="single-route-banner">
+                            <div>
+                                <div style="font-weight:700; color:var(--uber-black);">Optimal Route (Direct Corridor)</div>
+                                <div style="font-size:11px; color:var(--uber-gray-500); margin-top:2px;">via Bandra-Worli Sea Link • 21 km • 26 min</div>
+                            </div>
+                        </div>
+
+                        <div class="sheet-scroll-body">
+                            
+                            <!-- SMART ROUTE SELECTION (Binary 2-Option Snapping Toggle: Fastest vs Cheapest) -->
+                            <div class="smart-route-container" id="smart-route-container">
+                                <div class="route-section-header">
+                                    <div class="route-section-title">
+                                        <span>Route Preference</span>
+                                        <span class="route-section-badge">NEW</span>
+                                    </div>
+                                    <span class="route-info-link" id="why-route-link">Why prices differ? ›</span>
+                                </div>
+
+                                <!-- Discrete 2-State Snapping Slider Track -->
+                                <div class="route-slider-track" id="route-slider-track">
+                                    <div class="slider-snap-thumb" id="slider-thumb"></div>
+                                    
+                                    <div class="slider-segment active" data-index="0" onclick="snapToRoute(0)">
+                                        <span class="segment-label">Fastest</span>
+                                        <span class="segment-sub" id="sub-seg-0">26 min • ₹480</span>
+                                    </div>
+                                    
+                                    <div class="slider-segment" data-index="1" onclick="snapToRoute(1)">
+                                        <span class="segment-label">Cheapest</span>
+                                        <span class="segment-sub" id="sub-seg-1">42 min • ₹350</span>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Route Trade-off Banner -->
+                                <div class="route-tradeoff-card" id="tradeoff-card">
+                                    <div class="tradeoff-left">
+                                        <div class="tradeoff-road" id="card-road-name">
+                                            <span>via Bandra-Worli Sea Link (BWSL)</span>
+                                        </div>
+                                        <div class="tradeoff-dist-time" id="card-dist-time">21 km • 26 min</div>
+                                    </div>
+                                    <div class="tradeoff-badge badge-neutral" id="card-badge">
+                                        Incl. ₹85 toll
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Vehicle Rides List (All 5 vehicles facing right, matching official Uber app standard) -->
+                            <div class="ride-list" id="ride-list">
+
+                                <!-- 1. UberGo -->
+                                <div class="ride-card active" data-vehicle="ubergo" onclick="selectRide('ubergo')">
+                                    <div class="ride-img-wrap">
+                                        <img src="assets/ubergo.png" class="ride-img" alt="UberGo" loading="eager">
+                                    </div>
+                                    <div class="ride-info">
+                                        <div class="ride-title-row">
+                                            <span class="ride-name">UberGo</span>
+                                            <span class="ride-capacity">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> 4
+                                            </span>
+                                        </div>
+                                        <div class="ride-eta" id="eta-ubergo">4 min away • 10:07 AM</div>
+                                        <div class="ride-tagline">Affordable, compact hatchbacks</div>
+                                    </div>
+                                    <div class="ride-price-col">
+                                        <div class="ride-old-price" id="old-ubergo">₹480</div>
+                                        <div class="ride-price" id="price-ubergo">₹480</div>
+                                        <div class="ride-tag-chip chip-toll" id="chip-ubergo">Incl. ₹85 toll</div>
+                                    </div>
+                                </div>
+
+                                <!-- 2. Premier -->
+                                <div class="ride-card" data-vehicle="premier" onclick="selectRide('premier')">
+                                    <div class="ride-img-wrap">
+                                        <img src="assets/premier.png" class="ride-img" alt="Premier" loading="eager">
+                                    </div>
+                                    <div class="ride-info">
+                                        <div class="ride-title-row">
+                                            <span class="ride-name">Premier</span>
+                                            <span class="ride-capacity">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> 4
+                                            </span>
+                                        </div>
+                                        <div class="ride-eta" id="eta-premier">6 min away • 10:09 AM</div>
+                                        <div class="ride-tagline">Comfortable sedans, top drivers</div>
+                                    </div>
+                                    <div class="ride-price-col">
+                                        <div class="ride-old-price" id="old-premier">₹640</div>
+                                        <div class="ride-price" id="price-premier">₹640</div>
+                                        <div class="ride-tag-chip chip-toll" id="chip-premier">Incl. ₹85 toll</div>
+                                    </div>
+                                </div>
+
+                                <!-- 3. Uber Auto -->
+                                <div class="ride-card" data-vehicle="auto" id="card-auto" onclick="selectRide('auto')">
+                                    <div class="ride-img-wrap">
+                                        <img src="assets/auto.png" class="ride-img" alt="Uber Auto" loading="eager">
+                                    </div>
+                                    <div class="ride-info">
+                                        <div class="ride-title-row">
+                                            <span class="ride-name">Uber Auto</span>
+                                            <span class="ride-capacity">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> 3
+                                            </span>
+                                        </div>
+                                        <div class="ride-eta" id="eta-auto">3 min away • 10:23 AM</div>
+                                        <div class="ride-tagline" id="tagline-auto">Affordable auto rides • 3 seats</div>
+                                    </div>
+                                    <div class="ride-price-col">
+                                        <div class="ride-old-price" id="old-auto">₹240</div>
+                                        <div class="ride-price" id="price-auto">₹240</div>
+                                        <div class="ride-tag-chip chip-save" id="chip-auto" style="display:none;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- 4. Uber Moto -->
+                                <div class="ride-card" data-vehicle="moto" onclick="selectRide('moto')">
+                                    <div class="ride-img-wrap">
+                                        <img src="assets/moto.png" class="ride-img" alt="Uber Moto" loading="eager">
+                                    </div>
+                                    <div class="ride-info">
+                                        <div class="ride-title-row">
+                                            <span class="ride-name">Uber Moto</span>
+                                            <span class="ride-capacity">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> 1
+                                            </span>
+                                        </div>
+                                        <div class="ride-eta" id="eta-moto">2 min away • 10:20 AM</div>
+                                        <div class="ride-tagline">Fast motorcycle rides for 1</div>
+                                    </div>
+                                    <div class="ride-price-col">
+                                        <div class="ride-old-price" id="old-moto">₹160</div>
+                                        <div class="ride-price" id="price-moto">₹160</div>
+                                        <div class="ride-tag-chip chip-save" id="chip-moto" style="display:none;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- 5. UberXL -->
+                                <div class="ride-card" data-vehicle="uberxl" onclick="selectRide('uberxl')">
+                                    <div class="ride-img-wrap">
+                                        <img src="assets/uberxl.png" class="ride-img" alt="UberXL" loading="eager">
+                                    </div>
+                                    <div class="ride-info">
+                                        <div class="ride-title-row">
+                                            <span class="ride-name">UberXL</span>
+                                            <span class="ride-capacity">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> 6
+                                            </span>
+                                        </div>
+                                        <div class="ride-eta" id="eta-uberxl">8 min away • 10:11 AM</div>
+                                        <div class="ride-tagline">Spacious 6-seater SUVs</div>
+                                    </div>
+                                    <div class="ride-price-col">
+                                        <div class="ride-old-price" id="old-uberxl">₹790</div>
+                                        <div class="ride-price" id="price-uberxl">₹790</div>
+                                        <div class="ride-tag-chip chip-toll" id="chip-uberxl">Incl. ₹85 toll</div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- Bottom Action & Payment Selector -->
+                        <div class="bottom-action-panel">
+                            <div class="payment-row">
+                                <div class="payment-pill" onclick="alert('Payment method: Amazon Pay UPI (Auto-debit active)')">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/></svg>
+                                    <span>Amazon Pay / UPI</span>
+                                    <span style="color:#afafaf; font-size:11px;">›</span>
+                                </div>
+                                <div class="profile-pill">
+                                    <span>Personal</span>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                                </div>
+                            </div>
+
+                            <button class="uber-confirm-btn" id="confirm-booking-btn" onclick="openBookingModal()">
+                                <span>Choose UberGo</span>
+                                <span style="font-weight:400; opacity:0.8;">•</span>
+                                <span id="btn-price-tag">₹480</span>
+                            </button>
+
+                            <div class="home-indicator"></div>
+                        </div>
+
+                    </div> <!-- End Bottom Sheet -->
+
+                    <!-- Regulatory Restriction Notification Toast -->
+                    <div class="regulatory-toast" id="regulatory-toast">
+                        <span style="font-size:18px; line-height:1; flex-shrink:0;">🚫</span>
+                        <div>
+                            <div style="font-weight:700; font-size:12px; margin-bottom:2px;">Auto-Rickshaws Restricted in South Mumbai</div>
+                            <div style="font-size:11px; opacity:0.88; line-height:1.35;">By municipal RTO regulations, auto-rickshaws cannot operate south of Bandra / Sion (Island City). Please choose UberGo, Premier, or Moto.</div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL 1: Price & Route Transparency Breakdown -->
+                    <div class="modal-overlay" id="route-detail-modal" onclick="closeAllModals(event)">
+                        <div class="modal-sheet" onclick="event.stopPropagation()">
+                            <div class="modal-close-bar" onclick="closeAllModals()"></div>
+                            <h3 style="font-size: 20px; font-weight:800; margin-bottom: 6px;">How Upfront Fares Are Calculated</h3>
+                            <p style="font-size: 13px; color: var(--uber-gray-500); margin-bottom: 16px;">
+                                Fares reflect base vehicle rate, road distance, estimated travel time, and government toll charges (Sea Link).
+                            </p>
+
+                            <div style="background:var(--uber-gray-100); border-radius:12px; padding:14px; margin-bottom:14px;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
+                                    <span style="color:var(--uber-gray-500);">Base Distance Fare:</span>
+                                    <strong id="modal-base-dist">₹295 (21 km)</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
+                                    <span style="color:var(--uber-gray-500);">Time & Congestion:</span>
+                                    <strong id="modal-base-time">₹100 (26 min)</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
+                                    <span style="color:var(--uber-gray-500);">Toll Plaza (BWSL):</span>
+                                    <strong id="modal-toll-charge">₹85 (Sea Link)</strong>
+                                </div>
+                                <div style="border-top:1px dashed var(--uber-gray-300); margin:8px 0; padding-top:8px; display:flex; justify-content:space-between; font-size:15px;">
+                                    <span style="font-weight:800;">Total Upfront Fare:</span>
+                                    <strong id="modal-total-fare" style="font-size:18px;">₹480</strong>
+                                </div>
+                            </div>
+
+                            <div style="background:var(--uber-green-bg); color:var(--uber-green); padding:12px; border-radius:10px; font-size:12px; font-weight:600; margin-bottom:16px;">
+                                ✓ <strong>Closed-Loop Driver Sync:</strong> Your selected route waypoints are locked into the driver Google Maps intent upon dispatch.
+                            </div>
+
+                            <button class="uber-confirm-btn" onclick="closeAllModals()">Got it</button>
+                        </div>
+                    </div>
+
+                    <!-- MODAL 2: Booking Confirmation Flow -->
+                    <div class="modal-overlay" id="booking-confirm-modal" onclick="closeAllModals(event)">
+                        <div class="modal-sheet" onclick="event.stopPropagation()">
+                            <div class="modal-close-bar" onclick="closeAllModals()"></div>
+                            <div style="text-align:center; padding: 10px 0 16px;">
+                                <div style="width:50px; height:50px; background:#000; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-size:24px;">✓</div>
+                                <h3 style="font-size:20px; font-weight:800;" id="booking-modal-title">Ride Confirmed!</h3>
+                                <p style="font-size:13px; color:var(--uber-gray-500); margin-top:4px;" id="booking-modal-sub">
+                                    Matching with nearest UberGo driver in BKC...
+                                </p>
+                            </div>
+
+                            <div style="background:var(--uber-gray-100); border-radius:14px; padding:14px; margin-bottom:16px;">
+                                <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--uber-gray-500); margin-bottom:6px;">Locked Route & Fare Guarantee</div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div>
+                                        <div style="font-size:15px; font-weight:700;" id="book-route-name">via Bandra-Worli Sea Link</div>
+                                        <div style="font-size:12px; color:var(--uber-gray-500);" id="book-route-metrics">26 min • 21 km • Fastest</div>
+                                    </div>
+                                    <div style="font-size:20px; font-weight:800;" id="book-route-price">₹480</div>
+                                </div>
+                            </div>
+
+                            <div style="border-left: 3px solid var(--uber-blue); padding-left:12px; margin-bottom:18px; font-size:12px; color:var(--uber-gray-500); line-height:1.5;">
+                                <strong>Anti-Detour Policy:</strong> Driver turn-by-turn navigation is pre-loaded along this corridor. Fare will never exceed your upfront quote unless you request an unscheduled stop.
+                            </div>
+
+                            <button class="uber-confirm-btn" onclick="closeAllModals()">Back to Map</button>
+                        </div>
+                    </div>
+
+                </div> <!-- End Phone Inner -->
+            </div> <!-- End Phone Frame -->
+        </div> <!-- End Phone Wrapper -->
+
+
+        <!-- ========================================================
+             2. SIDEBAR (Prototype Controls & Documentation)
+             ======================================================== -->
+        <div class="pm-companion-panel">
+            <!-- 0. Corridor Selector (Multi-Corridor Simulation) -->
+            <div>
+                <div class="panel-section-title">
+                    <span>Active Test Corridor</span>
+                    <span style="font-size:10px; color:#58a6ff; font-weight:600;" id="sb-corridor-tag">TOLL CORRIDOR</span>
+                </div>
+                <div class="corridor-sidebar-toggle">
+                    <button class="corridor-tab-btn active" id="tab-bkc" onclick="switchCorridor('bkc_nariman')">
+                        <span>BKC ➔ Nariman Pt</span>
+                        <span style="font-size:9px; font-weight:500; opacity:0.75;">Toll Corridor</span>
+                    </button>
+                    <button class="corridor-tab-btn" id="tab-powai" onclick="switchCorridor('powai_santacruz')">
+                        <span>Powai ➔ Santacruz East</span>
+                        <span style="font-size:9px; font-weight:500; opacity:0.75;">JVLR vs SCLR</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 1. Live Corridor Economics (Active Route Metrics) -->
+            <div>
+                <div class="panel-section-title">
+                    <span>Active Route Metrics</span>
+                    <span style="font-size:10px; color:#58a6ff; font-weight:600;" id="sb-route-status">LIVE ROUTE</span>
+                </div>
+                <div class="active-corridor-card">
+                    <div class="active-corridor-header">
+                        <span class="active-corridor-road" id="sb-stat-road">via Bandra-Worli Sea Link</span>
+                        <span class="active-corridor-fare" id="sb-stat-price">₹480</span>
+                    </div>
+                    <div class="active-corridor-grid">
+                        <div class="active-stat-box">
+                            <div class="active-stat-val" id="sb-stat-dist">21 km</div>
+                            <div class="active-stat-lbl">Distance</div>
+                        </div>
+                        <div class="active-stat-box">
+                            <div class="active-stat-val" id="sb-stat-time">26 min</div>
+                            <div class="active-stat-lbl">Duration</div>
+                        </div>
+                        <div class="active-stat-box">
+                            <div class="active-stat-val" id="sb-stat-toll">₹85</div>
+                            <div class="active-stat-lbl">Toll Fee</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Feature Metrics to Track (Product Metrics Framework) -->
+            <div>
+                <div class="panel-section-title">
+                    <span>Feature Metrics To Track</span>
+                </div>
+                <div class="metrics-card">
+                    <div class="metric-item">
+                        <div class="metric-dot" style="background:#58a6ff;"></div>
+                        <div class="metric-body">
+                            <div class="metric-title"><span style="color:#58a6ff; font-weight:700;">[North Star]</span> ETA Accuracy Gap</div>
+                            <div class="metric-desc">P90 predicted vs actual trip duration (Sea Link vs Mahim / JVLR vs SCLR).</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-dot" style="background:#3fb950;"></div>
+                        <div class="metric-body">
+                            <div class="metric-title"><span style="color:#3fb950; font-weight:700;">[Adoption Lever]</span> Route Opt-In Split</div>
+                            <div class="metric-desc">% of eligible riders actively toggling between Fastest (Toll/Flyover) vs Value route.</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-dot" style="background:#d29922;"></div>
+                        <div class="metric-body">
+                            <div class="metric-title"><span style="color:#d29922; font-weight:700;">[Ops & Cost]</span> Toll Friction & Driver Net</div>
+                            <div class="metric-desc">Automated FASTag toll pass-through accuracy and net driver hourly earnings.</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-dot" style="background:#f85149;"></div>
+                        <div class="metric-body">
+                            <div class="metric-title"><span style="color:#f85149; font-weight:700;">[Guardrail]</span> Driver Reroute & Cancellation</div>
+                            <div class="metric-desc">Post-dispatch route divergence & cancellation rate due to corridor mismatch.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Testing Edge Case -->
+            <div>
+                <div class="panel-section-title">Testing Edge Case</div>
+                <div class="edge-case-box">
+                    <div>
+                        <div class="edge-case-title">Single Route Corridor</div>
+                        <div class="edge-case-sub">Simulate a journey where only one optimal route exists</div>
+                    </div>
+                    <button class="switch-btn" id="simulate-edge-btn" onclick="toggleEdgeCaseSimulation()">Simulate 1 Route</button>
+                </div>
+            </div>
+
+            <!-- 4. Documentation Links -->
+            <div>
+                <div class="panel-section-title">Documentation</div>
+                <div class="doc-btn-group">
+                    <a href="/docs/PRD.md" class="doc-link-btn" target="_blank">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <span>Product Requirements (PRD)</span>
+                    </a>
+                    <a href="/docs/Trade_offs_and_Decision_Log.md" class="doc-link-btn" target="_blank">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        <span>Trade-offs & Decision Log</span>
+                    </a>
+                </div>
+            </div>
+
+        </div> <!-- End PM Companion Panel -->
+
+    </div> <!-- End Workspace Container -->
+
+
+    <!-- ========================================================
+         JAVASCRIPT APPLICATION LOGIC
+         ======================================================== -->
+    <script>
+        // ========================================================
+        // MULTI-CORRIDOR & REAL MUMBAI OSRM ENGINE
+        // ========================================================
+        const VEHICLES = {
+            ubergo: { name: 'UberGo', capacity: 4, pickupMin: 4 },
+            premier: { name: 'Premier', capacity: 4, pickupMin: 6 },
+            auto: { name: 'Uber Auto', capacity: 3, pickupMin: 3 },
+            moto: { name: 'Uber Moto', capacity: 1, pickupMin: 2 },
+            uberxl: { name: 'UberXL', capacity: 6, pickupMin: 8 }
+        };
+
+        let currentCorridorKey = 'bkc_nariman';
+        let ROUTE_INFO = ALL_CORRIDORS[currentCorridorKey].routes;
+        let currentRouteIdx = 0;
+        let selectedVehicle = 'ubergo';
+        let isSheetExpanded = false;
+        let isSingleRouteSimulated = false;
+
+        let pickupMarker = null;
+        let dropoffMarker = null;
+        let polylineLayers = [];
+        let bubbleMarkers = [];
+
+        // 1. INITIALIZE LEAFLET MAP (Exact Uber App Zoom & Fractional Scale)
+        const map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false,
+            dragging: true,
+            touchZoom: true,
+            scrollWheelZoom: true,
+            doubleClickZoom: false,
+            zoomSnap: 0.05,
+            zoomDelta: 0.2
+        });
+
+        // OpenStreetMap Tile Layer (100% reliable)
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        setTimeout(() => { map.invalidateSize(); }, 250);
+        window.addEventListener('resize', () => map.invalidateSize());
+
+        document.getElementById('recenter-map-btn').addEventListener('click', () => {
+            fitCorridorView(true);
+        });
+
+        function fitCorridorView(animate = false) {
+            const corridor = ALL_CORRIDORS[currentCorridorKey];
+            if (!corridor) return;
+            map.fitBounds(corridor.bounds, { 
+                paddingTopLeft: [14, 52], 
+                paddingBottomRight: [14, 18], 
+                animate: animate 
+            });
+        }
+
+        // 2. CORRIDOR RENDERING (Swaps Polylines, Pins, Bubbles & Labels)
+        function renderCorridor(corridorKey, resetToDefault = true) {
+            currentCorridorKey = corridorKey;
+            const corridor = ALL_CORRIDORS[corridorKey];
+            ROUTE_INFO = corridor.routes;
+            isSingleRouteSimulated = false;
+
+            // Reset Edge Case button
+            const simBtn = document.getElementById('simulate-edge-btn');
+            if (simBtn) {
+                simBtn.classList.remove('active');
+                simBtn.textContent = 'Simulate 1 Route';
+            }
+
+            // Clear previous map layers
+            if (pickupMarker && map.hasLayer(pickupMarker)) map.removeLayer(pickupMarker);
+            if (dropoffMarker && map.hasLayer(dropoffMarker)) map.removeLayer(dropoffMarker);
+            polylineLayers.forEach(layer => {
+                if (map.hasLayer(layer.casing)) map.removeLayer(layer.casing);
+                if (map.hasLayer(layer.coreLine)) map.removeLayer(layer.coreLine);
+            });
+            polylineLayers = [];
+            bubbleMarkers.forEach(marker => {
+                if (map.hasLayer(marker)) map.removeLayer(marker);
+            });
+            bubbleMarkers = [];
+
+            // Add Custom Pickup & Dropoff Markers
+            const pickupHtml = `
+                <div class="uber-place-pin pickup">
+                    <div class="uber-place-badge">
+                        <span class="place-eta">${corridor.pickup.eta}</span>
+                        <span class="place-name">${corridor.pickup.name} <span class="place-chevron">&rsaquo;</span></span>
+                    </div>
+                    <div class="uber-place-dot circle">
+                        <div class="uber-pin-pulse"></div>
+                    </div>
+                </div>
+            `;
+            const dropoffHtml = `
+                <div class="uber-place-pin dropoff">
+                    <div class="uber-place-badge">
+                        <span class="place-name">${corridor.dropoff.name} <span class="place-chevron">&rsaquo;</span></span>
+                    </div>
+                    <div class="uber-place-dot square"></div>
+                </div>
+            `;
+
+            const pickupIcon = L.divIcon({ html: pickupHtml, className: 'uber-custom-bubble-icon', iconSize: [140, 36], iconAnchor: [70, 34] });
+            const dropoffIcon = L.divIcon({ html: dropoffHtml, className: 'uber-custom-bubble-icon', iconSize: [130, 36], iconAnchor: [65, 34] });
+
+            pickupMarker = L.marker(corridor.pickup.coords, { icon: pickupIcon }).addTo(map);
+            dropoffMarker = L.marker(corridor.dropoff.coords, { icon: dropoffIcon }).addTo(map);
+
+            // Render Street Polylines & Interactive Route Bubbles
+            corridor.routes.forEach((r, idx) => {
+                const coords = r.coords;
+                const casing = L.polyline(coords, {
+                    color: '#FFFFFF',
+                    weight: idx === 0 ? 8.5 : 5,
+                    opacity: idx === 0 ? 0.98 : 0.35,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }).addTo(map);
+
+                const coreLine = L.polyline(coords, {
+                    color: idx === 0 ? '#000000' : '#8D96A0',
+                    weight: idx === 0 ? 5.5 : 3.5,
+                    opacity: idx === 0 ? 1.0 : 0.38,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }).addTo(map);
+
+                const handleRouteClick = () => {
+                    if (currentCorridorKey === 'bkc_nariman' && (selectedVehicle === 'auto' || selectedVehicle === 'moto')) {
+                        return;
+                    }
+                    snapToRoute(idx);
+                };
+
+                coreLine.on('click', handleRouteClick);
+                casing.on('click', handleRouteClick);
+                polylineLayers.push({ casing, coreLine });
+
+                // Map Route Floating Bubble
+                const bubbleHtml = `<div class="map-route-bubble ${idx === 0 ? 'active' : ''}">${r.label}</div>`;
+                const bubbleIcon = L.divIcon({ 
+                    html: bubbleHtml, 
+                    className: 'uber-custom-bubble-icon', 
+                    iconSize: [94, 24], 
+                    iconAnchor: [47, 12] 
+                });
+                const bubbleMarker = L.marker(r.midpoint, { icon: bubbleIcon }).addTo(map);
+                bubbleMarker.setZIndexOffset(idx === 0 ? 1000 : 200);
+                bubbleMarker.on('click', handleRouteClick);
+                bubbleMarkers.push(bubbleMarker);
+            });
+
+            // Frame Map View
+            fitCorridorView(false);
+
+            // Sync Phone Top Pill
+            const originShort = corridorKey === 'bkc_nariman' ? 'BKC' : 'Powai';
+            const destShort = corridorKey === 'bkc_nariman' ? 'Nariman Point' : 'Santacruz East';
+            const pOrigin = document.getElementById('pill-origin');
+            const pDest = document.getElementById('pill-dest');
+            if (pOrigin) pOrigin.textContent = originShort;
+            if (pDest) pDest.textContent = destShort;
+
+            // Sync Dropdown Active State
+            const dropBkc = document.getElementById('dropdown-item-bkc');
+            const dropPowai = document.getElementById('dropdown-item-powai');
+            if (dropBkc) dropBkc.classList.toggle('active', corridorKey === 'bkc_nariman');
+            if (dropPowai) dropPowai.classList.toggle('active', corridorKey === 'powai_santacruz');
+
+            // Sync Sidebar Segmented Controls
+            const tabBkc = document.getElementById('tab-bkc');
+            const tabPowai = document.getElementById('tab-powai');
+            if (tabBkc) tabBkc.classList.toggle('active', corridorKey === 'bkc_nariman');
+            if (tabPowai) tabPowai.classList.toggle('active', corridorKey === 'powai_santacruz');
+
+            const sbTag = document.getElementById('sb-corridor-tag');
+            if (sbTag) sbTag.textContent = corridorKey === 'bkc_nariman' ? 'TOLL CORRIDOR' : 'FLYOVER CORRIDOR';
+
+            // Handle South Mumbai Auto Restriction
+            const cardAuto = document.getElementById('card-auto');
+            const tagAuto = document.getElementById('tagline-auto');
+            const etaAuto = document.getElementById('eta-auto');
+            const priceAuto = document.getElementById('price-auto');
+
+            if (corridorKey === 'bkc_nariman') {
+                if (cardAuto) cardAuto.classList.add('restricted-card');
+                if (tagAuto) tagAuto.innerHTML = '<span class="regulatory-tag">🚫 Prohibited past Bandra / Sion</span>';
+                if (etaAuto) etaAuto.innerHTML = '<span style="color:#b84300; font-size:11px; font-weight:700;">🚫 Municipal Boundary Restriction</span>';
+                if (priceAuto) priceAuto.innerHTML = '<span style="font-size:11px; color:var(--uber-gray-500); font-weight:700;">N/A</span>';
+                if (selectedVehicle === 'auto') {
+                    selectedVehicle = 'ubergo';
+                }
+            } else {
+                if (cardAuto) cardAuto.classList.remove('restricted-card');
+                if (tagAuto) tagAuto.textContent = 'Affordable auto rides • 3 seats';
+                if (etaAuto) etaAuto.textContent = '3 min away • 10:23 AM';
+            }
+
+            if (resetToDefault) {
+                currentRouteIdx = 0;
+            }
+            selectRide(selectedVehicle);
+        }
+
+        // 3. CORRIDOR DROPDOWN TOGGLING
+        function toggleCorridorDropdown(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('corridor-dropdown');
+            if (menu) menu.classList.toggle('active');
+        }
+
+        function switchCorridor(corridorKey) {
+            const menu = document.getElementById('corridor-dropdown');
+            if (menu) menu.classList.remove('active');
+            if (currentCorridorKey !== corridorKey) {
+                renderCorridor(corridorKey, true);
+            }
+        }
+
+        // Close dropdown when tapping anywhere outside
+        window.addEventListener('click', (e) => {
+            const menu = document.getElementById('corridor-dropdown');
+            const pill = document.getElementById('route-summary-pill');
+            if (menu && menu.classList.contains('active')) {
+                if (!menu.contains(e.target) && !pill.contains(e.target)) {
+                    menu.classList.remove('active');
+                }
+            }
+        });
+
+        // 4. ROUTE SWITCHING FUNCTION (Syncs prices across 100% of UI)
+        function snapToRoute(index) {
+            currentRouteIdx = index;
+            const route = ROUTE_INFO[index];
+
+            // 1. Move Discrete 2-State Slider Thumb
+            const thumb = document.getElementById('slider-thumb');
+            if (thumb) thumb.style.transform = `translateX(${index * 100}%)`;
+
+            // Update segment styles
+            document.querySelectorAll('.slider-segment').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+            });
+
+            // Update sub-labels and segment titles dynamically
+            const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+            const seg1 = document.querySelector('.slider-segment[data-index="1"] .segment-label');
+            if (seg0) seg0.textContent = ROUTE_INFO[0].name;
+            if (seg1) seg1.textContent = ROUTE_INFO[1].name;
+
+            const sub0 = document.getElementById('sub-seg-0');
+            const sub1 = document.getElementById('sub-seg-1');
+            if (sub0) sub0.textContent = `${ROUTE_INFO[0].time} • ₹${ROUTE_INFO[0].prices[selectedVehicle]}`;
+            if (sub1) sub1.textContent = `${ROUTE_INFO[1].time} • ₹${ROUTE_INFO[1].prices[selectedVehicle]}`;
+
+            // 2. Update Trade-off Banner (Only show toll when applicable, remove when not)
+            const roadNameEl = document.getElementById('card-road-name');
+            if (roadNameEl) roadNameEl.innerHTML = `<span>${route.road}</span>`;
+            
+            const distTimeEl = document.getElementById('card-dist-time');
+            if (distTimeEl) distTimeEl.textContent = `${route.dist} • ${route.time}`;
+            
+            const badge = document.getElementById('card-badge');
+            if (badge) {
+                if (route.tolls) {
+                    badge.style.display = 'inline-block';
+                    badge.textContent = `Incl. ₹${route.tollAmt} toll`;
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+
+            // 3. Update Map Polylines & Bubbles with High Contrast & Transparency
+            polylineLayers.forEach((layer, i) => {
+                if (i === index) {
+                    layer.casing.setStyle({ color: '#FFFFFF', weight: 8.5, opacity: 0.98 });
+                    layer.coreLine.setStyle({ color: '#000000', weight: 5.5, opacity: 1.0 });
+                    layer.coreLine.bringToFront();
+                } else {
+                    layer.casing.setStyle({ color: '#FFFFFF', weight: 5, opacity: 0.35 });
+                    layer.coreLine.setStyle({ color: '#8D96A0', weight: 3.5, opacity: 0.38 });
+                    layer.casing.bringToBack();
+                    layer.coreLine.bringToBack();
+                }
+            });
+
+            bubbleMarkers.forEach((marker, i) => {
+                const bubbleEl = marker.getElement()?.querySelector('.map-route-bubble');
+                if (bubbleEl) {
+                    const isActive = (i === index);
+                    bubbleEl.classList.toggle('active', isActive);
+                    const currentVPrice = ROUTE_INFO[i].prices[selectedVehicle];
+                    bubbleEl.textContent = `${ROUTE_INFO[i].time} • ₹${currentVPrice}`;
+                }
+                marker.setZIndexOffset(i === index ? 1000 : 200);
+            });
+
+            // 4. Update Vehicle Prices and Dynamic ETAs
+            const baseClockMin = 41; // 9:41 AM
+            for (const [vKey, price] of Object.entries(route.prices)) {
+                const priceEl = document.getElementById(`price-${vKey}`);
+                if (priceEl) {
+                    if (currentCorridorKey === 'bkc_nariman' && vKey === 'auto') {
+                        priceEl.innerHTML = '<span style="font-size:11px; color:var(--uber-gray-500); font-weight:700;">N/A</span>';
+                    } else {
+                        priceEl.textContent = `₹${price}`;
+                    }
+                }
+
+                const oldPriceEl = document.getElementById(`old-${vKey}`);
+                if (oldPriceEl) oldPriceEl.style.display = 'none';
+
+                // Toll Tag Chip: Only show when toll is applicable (Sea link for cars).
+                const chipEl = document.getElementById(`chip-${vKey}`);
+                if (chipEl) {
+                    if (route.tolls && (vKey === 'ubergo' || vKey === 'premier' || vKey === 'uberxl')) {
+                        chipEl.style.display = 'inline-block';
+                        chipEl.textContent = `Incl. ₹${route.tollAmt} toll`;
+                    } else {
+                        chipEl.style.display = 'none';
+                    }
+                }
+
+                // Dynamic ETA
+                const dropoffMin = parseInt(route.time);
+                const arrivalTotal = baseClockMin + VEHICLES[vKey].pickupMin + dropoffMin;
+                const hrs = 9 + Math.floor(arrivalTotal / 60);
+                const mins = arrivalTotal % 60;
+                const etaTimeStr = `${hrs}:${mins.toString().padStart(2, '0')} AM`;
+                
+                const etaEl = document.getElementById(`eta-${vKey}`);
+                if (etaEl) {
+                    if (currentCorridorKey === 'bkc_nariman' && vKey === 'auto') {
+                        etaEl.innerHTML = '<span style="color:#b84300; font-size:11px; font-weight:700;">🚫 Municipal Boundary Restriction</span>';
+                    } else {
+                        etaEl.textContent = `${VEHICLES[vKey].pickupMin} min away • ${etaTimeStr}`;
+                    }
+                }
+            }
+
+            if (currentCorridorKey === 'bkc_nariman') {
+                const tagAuto = document.getElementById('tagline-auto');
+                if (tagAuto) tagAuto.innerHTML = '<span class="regulatory-tag">🚫 Prohibited past Bandra / Sion</span>';
+                const cardAuto = document.getElementById('card-auto');
+                if (cardAuto) cardAuto.classList.add('restricted-card');
+            } else {
+                const tagAuto = document.getElementById('tagline-auto');
+                if (tagAuto) tagAuto.textContent = 'Affordable auto rides • 3 seats';
+                const cardAuto = document.getElementById('card-auto');
+                if (cardAuto) cardAuto.classList.remove('restricted-card');
+            }
+
+            // 5. Update CTA Button Price
+            updateConfirmButton();
+
+            // 6. Update Sidebar Live Metrics Card
+            const sbRoad = document.getElementById('sb-stat-road');
+            const sbPrice = document.getElementById('sb-stat-price');
+            const sbDist = document.getElementById('sb-stat-dist');
+            const sbTime = document.getElementById('sb-stat-time');
+            const sbToll = document.getElementById('sb-stat-toll');
+            const sbStatus = document.getElementById('sb-route-status');
+
+            if (sbRoad) sbRoad.textContent = route.road;
+            if (sbPrice) sbPrice.textContent = `₹${route.prices[selectedVehicle]}`;
+            if (sbDist) sbDist.textContent = route.dist;
+            if (sbTime) sbTime.textContent = route.time;
+            if (sbToll) sbToll.textContent = route.tolls ? `₹${route.tollAmt}` : '₹0';
+            if (sbStatus) sbStatus.textContent = `${route.name.toUpperCase()} ROUTE`;
+
+            // 7. Update Modals Data
+            const mDist = document.getElementById('modal-base-dist');
+            const mTime = document.getElementById('modal-base-time');
+            const mToll = document.getElementById('modal-toll-charge');
+            const mTotal = document.getElementById('modal-total-fare');
+            if (mDist) mDist.textContent = route.breakdown.base;
+            if (mTime) mTime.textContent = route.breakdown.time;
+            if (mToll) mToll.textContent = route.tolls ? `₹${route.tollAmt} (Toll)` : '₹0';
+            if (mTotal) mTotal.textContent = `₹${route.prices[selectedVehicle]}`;
+        }
+
+        // Regulatory Toast Trigger
+        function showRegulatoryToast() {
+            const toast = document.getElementById('regulatory-toast');
+            if (!toast) return;
+            toast.classList.add('show');
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4200);
+        }
+
+        // 5. VEHICLE SELECTION (Auto/Moto handling for Sea Link vs Powai Flyover)
+        function selectRide(vKey) {
+            if (currentCorridorKey === 'bkc_nariman' && vKey === 'auto') {
+                showRegulatoryToast();
+                return; // Auto cannot be selected into South Mumbai
+            }
+
+            selectedVehicle = vKey;
+            document.querySelectorAll('.ride-card').forEach(card => card.classList.remove('active'));
+            const activeCard = document.querySelector(`.ride-card[data-vehicle="${vKey}"]`);
+            if (activeCard) activeCard.classList.add('active');
+
+            const routeContainer = document.getElementById('smart-route-container');
+
+            if (currentCorridorKey === 'bkc_nariman' && vKey === 'moto') {
+                // Two-wheelers allowed into South Mumbai via Mahim, but prohibited on Sea Link bridge
+                if (polylineLayers[0]) {
+                    polylineLayers[0].casing.removeFrom(map);
+                    polylineLayers[0].coreLine.removeFrom(map);
+                }
+                if (bubbleMarkers[0]) {
+                    bubbleMarkers[0].removeFrom(map);
+                }
+
+                if (polylineLayers[1]) {
+                    if (!map.hasLayer(polylineLayers[1].casing)) {
+                        polylineLayers[1].casing.addTo(map);
+                        polylineLayers[1].coreLine.addTo(map);
+                    }
+                    polylineLayers[1].casing.setStyle({ color: '#FFFFFF', weight: 8, opacity: 0.95 });
+                    polylineLayers[1].coreLine.setStyle({ color: '#000000', weight: 5, opacity: 1 });
+                    polylineLayers[1].coreLine.bringToFront();
+                }
+                if (bubbleMarkers[1]) {
+                    if (!map.hasLayer(bubbleMarkers[1])) {
+                        bubbleMarkers[1].addTo(map);
+                    }
+                    const bubbleEl = bubbleMarkers[1].getElement()?.querySelector('.map-route-bubble');
+                    if (bubbleEl) {
+                        bubbleEl.classList.add('active');
+                        bubbleEl.textContent = `32 min • ₹${ROUTE_INFO[1].prices.moto}`;
+                    }
+                }
+
+                if (routeContainer) {
+                    routeContainer.classList.add('single-mode');
+                    const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+                    const sub0 = document.getElementById('sub-seg-0');
+                    if (seg0) seg0.textContent = 'Optimal Route (City Corridors)';
+                    if (sub0) sub0.textContent = `32 min • ₹${ROUTE_INFO[1].prices.moto}`;
+
+                    const roadNameEl = document.getElementById('card-road-name');
+                    if (roadNameEl) roadNameEl.innerHTML = `<span>via Mahim, Senapati Bapat & Marine Dr</span>`;
+                    const distTimeEl = document.getElementById('card-dist-time');
+                    if (distTimeEl) distTimeEl.textContent = `16 km • 32 min`;
+                    const badge = document.getElementById('card-badge');
+                    if (badge) badge.style.display = 'none';
+                }
+
+                const sbRoad = document.getElementById('sb-stat-road');
+                const sbPrice = document.getElementById('sb-stat-price');
+                const sbDist = document.getElementById('sb-stat-dist');
+                const sbTime = document.getElementById('sb-stat-time');
+                const sbToll = document.getElementById('sb-stat-toll');
+                const sbStatus = document.getElementById('sb-route-status');
+
+                if (sbRoad) sbRoad.textContent = 'via Mahim, Senapati Bapat & Marine Dr';
+                if (sbPrice) sbPrice.textContent = `₹${ROUTE_INFO[1].prices.moto}`;
+                if (sbDist) sbDist.textContent = '16 km';
+                if (sbTime) sbTime.textContent = '32 min';
+                if (sbToll) sbToll.textContent = '₹0';
+                if (sbStatus) sbStatus.textContent = 'CITY ONLY';
+
+            } else {
+                // Cars on BKC, OR all vehicles on Powai (where autos and bikes can take JVLR or SCLR)
+                if (!isSingleRouteSimulated) {
+                    if (routeContainer) {
+                        routeContainer.classList.remove('single-mode');
+                        const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+                        if (seg0) seg0.textContent = ROUTE_INFO[0].name;
+                    }
+
+                    if (polylineLayers[0] && !map.hasLayer(polylineLayers[0].casing)) {
+                        polylineLayers[0].casing.addTo(map);
+                        polylineLayers[0].coreLine.addTo(map);
+                    }
+                    if (bubbleMarkers[0] && !map.hasLayer(bubbleMarkers[0])) {
+                        bubbleMarkers[0].addTo(map);
+                    }
+                    if (polylineLayers[1] && !map.hasLayer(polylineLayers[1].casing)) {
+                        polylineLayers[1].casing.addTo(map);
+                        polylineLayers[1].coreLine.addTo(map);
+                    }
+                    if (bubbleMarkers[1] && !map.hasLayer(bubbleMarkers[1])) {
+                        bubbleMarkers[1].addTo(map);
+                    }
+
+                    snapToRoute(currentRouteIdx);
+                } else {
+                    if (routeContainer) {
+                        routeContainer.classList.add('single-mode');
+                        const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+                        if (seg0) seg0.textContent = 'Optimal Route (Direct Corridor)';
+                        const sub0 = document.getElementById('sub-seg-0');
+                        if (sub0) sub0.textContent = `${ROUTE_INFO[0].time} • ₹${ROUTE_INFO[0].prices[selectedVehicle]}`;
+                    }
+                }
+            }
+
+            updateConfirmButton();
+        }
+
+        function updateConfirmButton() {
+            const vData = VEHICLES[selectedVehicle];
+            const route = ROUTE_INFO[currentRouteIdx];
+            const isMotoBKC = (currentCorridorKey === 'bkc_nariman' && selectedVehicle === 'moto');
+            const currentPrice = isMotoBKC 
+                ? ROUTE_INFO[1].prices.moto 
+                : route.prices[selectedVehicle];
+
+            const btn = document.getElementById('confirm-booking-btn');
+            if (btn) {
+                btn.innerHTML = `
+                    <span>Choose ${vData.name}</span>
+                    <span style="font-weight:400; opacity:0.8;">•</span>
+                    <span id="btn-price-tag">₹${currentPrice}</span>
+                `;
+            }
+        }
+
+        // 6. INTERACTIVE BOTTOM SHEET PHYSICS (Expand / Collapse)
+        function toggleSheetExpansion() {
+            const sheet = document.getElementById('bottom-sheet');
+            const mapContainer = document.getElementById('map-container');
+
+            if (!isSheetExpanded) {
+                sheet.classList.add('sheet-expanded');
+                mapContainer.style.height = '18%';
+                isSheetExpanded = true;
+            } else {
+                sheet.classList.remove('sheet-expanded');
+                mapContainer.style.height = '46%';
+                isSheetExpanded = false;
+            }
+            setTimeout(() => map.invalidateSize(), 360);
+        }
+
+        function resetToInitialState() {
+            const sheet = document.getElementById('bottom-sheet');
+            const mapContainer = document.getElementById('map-container');
+            sheet.classList.remove('sheet-expanded');
+            mapContainer.style.height = '46%';
+            isSheetExpanded = false;
+            renderCorridor('bkc_nariman', true);
+            selectRide('ubergo');
+            setTimeout(() => map.invalidateSize(), 360);
+        }
+
+        // 7. EDGE CASE SIMULATOR (Single Route Scenario with clean restoration)
+        function toggleEdgeCaseSimulation() {
+            isSingleRouteSimulated = !isSingleRouteSimulated;
+            const container = document.getElementById('smart-route-container');
+            const btn = document.getElementById('simulate-edge-btn');
+
+            if (isSingleRouteSimulated) {
+                // Single Route Mode (Maintains exact height with .single-mode, ZERO layout shift!)
+                if (container) {
+                    container.classList.add('single-mode');
+                    const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+                    const sub0 = document.getElementById('sub-seg-0');
+                    if (seg0) seg0.textContent = 'Optimal Route (Direct Corridor)';
+                    if (sub0) sub0.textContent = `${ROUTE_INFO[0].time} • ₹${ROUTE_INFO[0].prices[selectedVehicle]}`;
+                    const roadNameEl = document.getElementById('card-road-name');
+                    if (roadNameEl) roadNameEl.innerHTML = `<span>${ROUTE_INFO[0].road}</span>`;
+                    const distTimeEl = document.getElementById('card-dist-time');
+                    if (distTimeEl) distTimeEl.textContent = `${ROUTE_INFO[0].dist} • ${ROUTE_INFO[0].time}`;
+                }
+                btn.classList.add('active');
+                btn.textContent = 'Restore 2 Routes';
+
+                // Remove alternative route polyline & bubble from map
+                if (polylineLayers[1]) {
+                    polylineLayers[1].casing.removeFrom(map);
+                    polylineLayers[1].coreLine.removeFrom(map);
+                }
+                if (bubbleMarkers[1]) {
+                    bubbleMarkers[1].removeFrom(map);
+                }
+
+                snapToRoute(0);
+            } else {
+                // Restore 2 Routes Mode
+                btn.classList.remove('active');
+                btn.textContent = 'Simulate 1 Route';
+
+                if (currentCorridorKey === 'bkc_nariman' && selectedVehicle === 'moto') {
+                    selectRide(selectedVehicle);
+                } else {
+                    if (container) {
+                        container.classList.remove('single-mode');
+                        const seg0 = document.querySelector('.slider-segment[data-index="0"] .segment-label');
+                        if (seg0) seg0.textContent = ROUTE_INFO[0].name;
+                    }
+
+                    // Re-add both polylines
+                    polylineLayers.forEach(layer => {
+                        if (!map.hasLayer(layer.casing)) {
+                            layer.casing.addTo(map);
+                            layer.coreLine.addTo(map);
+                        }
+                    });
+
+                    // Re-add both bubble markers
+                    bubbleMarkers.forEach(marker => {
+                        if (!map.hasLayer(marker)) {
+                            marker.addTo(map);
+                        }
+                    });
+
+                    // Synchronize and restore complete 2-route state
+                    snapToRoute(currentRouteIdx);
+                }
+            }
+        }
+
+        // 8. MODAL HANDLERS
+        function openBookingModal() {
+            const route = ROUTE_INFO[currentRouteIdx];
+            const vData = VEHICLES[selectedVehicle];
+            const isMotoBKC = (currentCorridorKey === 'bkc_nariman' && selectedVehicle === 'moto');
+            const price = isMotoBKC
+                ? ROUTE_INFO[1].prices.moto
+                : route.prices[selectedVehicle];
+            const activeRoad = isMotoBKC ? ROUTE_INFO[1].road : route.road;
+            const originName = currentCorridorKey === 'bkc_nariman' ? 'BKC' : 'Powai';
+
+            document.getElementById('booking-modal-title').textContent = `${vData.name} Requested!`;
+            document.getElementById('booking-modal-sub').textContent = `Matching with nearest ${vData.name} driver in ${originName}...`;
+            document.getElementById('book-route-name').textContent = activeRoad;
+            document.getElementById('book-route-metrics').textContent = isMotoBKC 
+                ? `32 min • 16 km • City Route` 
+                : `${route.time} • ${route.dist} • ${route.name}`;
+            document.getElementById('book-route-price').textContent = `₹${price}`;
+
+            const modal = document.getElementById('booking-confirm-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        }
+
+        document.getElementById('why-route-link').addEventListener('click', () => {
+            const modal = document.getElementById('route-detail-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal-overlay').forEach(modal => {
+                modal.classList.remove('active');
+                setTimeout(() => modal.style.display = 'none', 250);
+            });
+        }
+
+        // Initial Load
+        renderCorridor('bkc_nariman', true);
+        selectRide('ubergo');
+    </script>
+</body>
+</html>
