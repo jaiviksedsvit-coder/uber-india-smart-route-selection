@@ -13,7 +13,7 @@
   </a>
 </p>
 
-> 🎮 **[▶ Open Live Prototype](https://jaiviksedsvit-coder.github.io/uber-india-smart-route-selection/)** — Interactive Uber India route selection demo, runs directly in your browser. No install needed.
+> **[▶ Open Live Prototype](https://jaiviksedsvit-coder.github.io/uber-india-smart-route-selection/)** — Interactive Uber India route selection demo, runs directly in your browser. No install needed.
 
 ---
 
